@@ -64,9 +64,15 @@ export default function TestAIScreen() {
       });
     } catch (error) {
       console.error('[Test 1] Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const displayMessage = !process.env.EXPO_PUBLIC_TOOLKIT_URL
+        ? 'EXPO_PUBLIC_TOOLKIT_URL not configured. AI features require this environment variable.'
+        : errorMessage.includes('Network request failed')
+        ? 'Network request failed. AI services may be restricted in preview environment.'
+        : errorMessage;
       updateTest(0, {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: displayMessage,
         duration: Date.now() - startTime,
       });
     }
@@ -108,9 +114,15 @@ export default function TestAIScreen() {
       });
     } catch (error) {
       console.error('[Test 2] Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const displayMessage = !process.env.EXPO_PUBLIC_TOOLKIT_URL
+        ? 'EXPO_PUBLIC_TOOLKIT_URL not configured. AI features require this environment variable.'
+        : errorMessage.includes('Network request failed')
+        ? 'Network request failed. AI services may be restricted in preview environment.'
+        : errorMessage;
       updateTest(1, {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: displayMessage,
         duration: Date.now() - startTime,
       });
     }
@@ -181,9 +193,15 @@ Return ONLY a valid JSON object with this structure:
       });
     } catch (error) {
       console.error('[Test 3] Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const displayMessage = !process.env.EXPO_PUBLIC_TOOLKIT_URL
+        ? 'EXPO_PUBLIC_TOOLKIT_URL not configured. AI features require this environment variable.'
+        : errorMessage.includes('Network request failed')
+        ? 'Network request failed. AI services may be restricted in preview environment.'
+        : errorMessage;
       updateTest(2, {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: displayMessage,
         duration: Date.now() - startTime,
       });
     }
