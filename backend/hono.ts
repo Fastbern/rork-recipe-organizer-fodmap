@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, Context } from "hono";
 import { trpcServer } from "@hono/trpc-server";
 import { cors } from "hono/cors";
 import { appRouter } from "./trpc/app-router";
@@ -17,7 +17,7 @@ app.use(
   })
 );
 
-app.get("/", (c) => {
+app.get("/", (c: Context) => {
   return c.json({ status: "ok", message: "API is running" });
 });
 
