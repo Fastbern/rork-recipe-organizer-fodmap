@@ -20,6 +20,7 @@ import {
   Share2,
   LogOut,
   TestTube,
+  RotateCcw,
 } from 'lucide-react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +31,7 @@ import * as Sharing from 'expo-sharing';
 import { useFodmap } from '@/hooks/fodmap-store';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchFodmapDataset } from '@/utils/fodmap';
+import { useOnboarding } from '@/hooks/onboarding-store';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -40,6 +42,7 @@ export default function SettingsScreen() {
   const { dataset, isLoading: isFodmapLoading } = useFodmap();
   const queryClient = useQueryClient();
   const [isRefreshingFodmap, setIsRefreshingFodmap] = useState(false);
+  const { resetOnboarding } = useOnboarding();
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -331,6 +334,26 @@ export default function SettingsScreen() {
           icon={TestTube}
           label="Test AI Integration"
           onPress={() => router.push('/test-ai')}
+        />
+        <SettingItem
+          icon={RotateCcw}
+          label="Reset Onboarding"
+          onPress={() => {
+            Alert.alert(
+              'Reset Onboarding',
+              'This will reset the onboarding flow. The app will restart.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Reset',
+                  onPress: async () => {
+                    await resetOnboarding();
+                    router.replace('/');
+                  },
+                },
+              ]
+            );
+          }}
         />
       </SettingSection>
 

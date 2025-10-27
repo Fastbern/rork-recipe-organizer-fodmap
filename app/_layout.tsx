@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { RecipeProvider } from "@/hooks/recipe-store";
 import { FodmapProvider } from "@/hooks/fodmap-store";
 import { AdaptationProvider } from "@/hooks/adaptation-store";
+import { OnboardingProvider } from "@/hooks/onboarding-store";
 import { trpc, trpcClient } from "@/lib/trpc";
 import { View, ActivityIndicator } from "react-native";
 
@@ -17,6 +18,27 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen 
+        name="onboarding" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="personalize" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: false,
+        }} 
+      />
+      <Stack.Screen 
+        name="paywall" 
+        options={{ 
+          headerShown: false,
+          gestureEnabled: false,
+        }} 
+      />
       <Stack.Screen 
         name="add-recipe" 
         options={{ 
@@ -75,15 +97,17 @@ export default function RootLayout() {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <FodmapProvider>
-          <AdaptationProvider>
-            <RecipeProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <RootLayoutNav />
-              </GestureHandlerRootView>
-            </RecipeProvider>
-          </AdaptationProvider>
-        </FodmapProvider>
+        <OnboardingProvider>
+          <FodmapProvider>
+            <AdaptationProvider>
+              <RecipeProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </RecipeProvider>
+            </AdaptationProvider>
+          </FodmapProvider>
+        </OnboardingProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );
