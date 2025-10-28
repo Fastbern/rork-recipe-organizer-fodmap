@@ -8,13 +8,21 @@ import {
   ScrollView,
   Animated,
   Platform,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Heart, Sparkles, Users, TrendingUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Colors from '@/constants/colors';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const BRAND_GREENS = {
+  dark: '#2E7D32',
+  primary: Colors.primary,
+  light: '#66BB6A',
+} as const;
 
 const screens = [
   {
@@ -23,7 +31,8 @@ const screens = [
     subtitle: 'No more guessing. No more discomfort.',
     description: 'Living with IBS means every meal can feel like a risk. We understand your journey, and we\'re here to help you rediscover the pleasure of eating without fear.',
     icon: Heart,
-    gradient: ['#2d5016', '#4a7c28', '#5a8f30'],
+    gradient: [BRAND_GREENS.dark, BRAND_GREENS.primary, BRAND_GREENS.light],
+    photo: 'https://images.unsplash.com/photo-1540479859555-17af45c78602?q=80&w=1600&auto=format&fit=crop',
   },
   {
     id: 2,
@@ -31,12 +40,13 @@ const screens = [
     subtitle: 'Backed by medical research',
     description: 'Studies show 75% of IBS sufferers experience significant relief within 2-4 weeks on a Low FODMAP diet. Transform your relationship with food and feel lighter, energized, and confident again.',
     icon: TrendingUp,
-    gradient: ['#3d6b1f', '#4a7c28', '#5a8f30'],
+    gradient: [BRAND_GREENS.dark, BRAND_GREENS.primary, BRAND_GREENS.light],
     stats: [
       { value: '75%', label: 'Experience relief' },
       { value: '2-4 weeks', label: 'To see results' },
       { value: '10,000+', label: 'Lives transformed' },
     ],
+    photo: 'https://images.unsplash.com/photo-1576092768242-2f96f8ca9f19?q=80&w=1600&auto=format&fit=crop',
   },
   {
     id: 3,
@@ -44,7 +54,8 @@ const screens = [
     subtitle: 'Tailored to your unique needs',
     description: 'Every body is different. Select your dietary preferences and restrictions, and we\'ll create a custom meal plan that works for YOU.',
     icon: Users,
-    gradient: ['#4a7c28', '#5a8f30', '#6ba53c'],
+    gradient: [BRAND_GREENS.dark, BRAND_GREENS.primary, BRAND_GREENS.light],
+    photo: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?q=80&w=1600&auto=format&fit=crop',
   },
   {
     id: 4,
@@ -52,8 +63,9 @@ const screens = [
     subtitle: 'Developed with gastroenterologists',
     description: 'The Low FODMAP diet was developed by Monash University researchers and is recommended by gastroenterologists worldwide as the gold standard for managing IBS symptoms.',
     icon: Sparkles,
-    gradient: ['#5a8f30', '#6ba53c', '#7cb848'],
+    gradient: [BRAND_GREENS.dark, BRAND_GREENS.primary, BRAND_GREENS.light],
     source: 'Based on research from Monash University & peer-reviewed clinical trials',
+    photo: 'https://images.unsplash.com/photo-1526256262350-7da7584cf5eb?q=80&w=1600&auto=format&fit=crop',
   },
 ];
 
@@ -94,15 +106,21 @@ export default function OnboardingScreen() {
   const currentScreen = screens[currentIndex];
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID="onboarding-container">
+      <Image
+        source={{ uri: currentScreen.photo as string }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <LinearGradient
-        colors={currentScreen.gradient as [string, string, ...string[]]}
+        colors={[`${BRAND_GREENS.dark}CC`, `${BRAND_GREENS.primary}E6`, `${BRAND_GREENS.light}`] as [string, string, string]}
         style={StyleSheet.absoluteFillObject}
       />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
 
       {currentIndex < screens.length - 1 && (
-        <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+        <TouchableOpacity style={styles.skipButton} onPress={handleSkip} testID="skip-button">
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
       )}
@@ -125,7 +143,11 @@ export default function OnboardingScreen() {
               },
             ]}
           >
-            <View style={styles.content}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.content}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.iconContainer}>
                 <View style={styles.iconCircle}>
                   <screen.icon size={64} color="#d4f1d4" strokeWidth={1.5} />
@@ -150,12 +172,14 @@ export default function OnboardingScreen() {
               {screen.source && (
                 <Text style={styles.source}>{screen.source}</Text>
               )}
-            </View>
+
+              <View style={{ height: 140 }} />
+            </ScrollView>
           </Animated.View>
         ))}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={styles.footer} pointerEvents="box-none">
         <View style={styles.pagination}>
           {screens.map((_, index) => (
             <View
@@ -168,7 +192,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
+        <TouchableOpacity style={styles.nextButton} onPress={handleNext} testID="next-button">
           <Text style={styles.nextButtonText}>
             {currentIndex === screens.length - 1 ? 'Get Started' : 'Continue'}
           </Text>
@@ -207,10 +231,9 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
   },
   content: {
-    flex: 1,
     paddingHorizontal: 32,
-    paddingTop: Platform.OS === 'ios' ? 140 : 120,
-    paddingBottom: 180,
+    paddingTop: Platform.OS === 'ios' ? 120 : 100,
+    paddingBottom: 32,
   },
   iconContainer: {
     alignItems: 'center',
@@ -280,9 +303,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 32,
-    paddingBottom: Platform.OS === 'ios' ? 60 : 40,
-    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+    paddingTop: 16,
   },
   pagination: {
     flexDirection: 'row',
@@ -312,7 +335,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   nextButtonText: {
-    color: '#4a7c28',
+    color: Colors.primary,
     fontSize: 18,
     fontWeight: '700' as const,
   },
