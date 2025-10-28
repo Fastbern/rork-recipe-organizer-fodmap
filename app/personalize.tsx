@@ -5,9 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import Colors from '@/constants/colors';
 import { Check } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -64,8 +66,14 @@ export default function PersonalizeScreen() {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={{ uri: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=1600&auto=format&fit=crop' }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <LinearGradient
-        colors={['#4a7c28' as const, '#5a8f30' as const, '#6ba53c' as const]}
+        colors={[`#1E7D35CC`, `${Colors.primary}E6`, `#6FD17E` as const]}
         style={StyleSheet.absoluteFillObject}
       />
       
@@ -121,7 +129,7 @@ export default function PersonalizeScreen() {
                       styles.checkbox,
                       isSelected && styles.checkboxSelected
                     ]}>
-                      {isSelected && <Check size={20} color="#4a7c28" strokeWidth={3} />}
+                      {isSelected && <Check size={20} color={Colors.primary} strokeWidth={3} />}
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -209,7 +217,7 @@ const styles = StyleSheet.create({
   },
   optionCardSelected: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#d4f1d4',
+    borderColor: '#D4F1DB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -232,14 +240,14 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   optionTitleSelected: {
-    color: '#2d5016',
+    color: '#1E7D35',
   },
   optionDescription: {
     fontSize: 14,
     color: '#666666',
   },
   optionDescriptionSelected: {
-    color: '#4a7c28',
+    color: Colors.primary,
   },
   checkbox: {
     width: 28,
@@ -251,8 +259,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: '#d4f1d4',
-    borderColor: '#4a7c28',
+    backgroundColor: '#D4F1DB',
+    borderColor: Colors.primary,
   },
   footer: {
     position: 'absolute' as const,
@@ -278,7 +286,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   continueButtonText: {
-    color: '#4a7c28',
+    color: Colors.primary,
     fontSize: 18,
     fontWeight: '700' as const,
   },

@@ -19,9 +19,9 @@ import Colors from '@/constants/colors';
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const BRAND_GREENS = {
-  dark: '#2E7D32',
+  dark: '#1E7D35',
   primary: Colors.primary,
-  light: '#66BB6A',
+  light: '#6FD17E',
 } as const;
 
 const screens = [
@@ -150,7 +150,7 @@ export default function OnboardingScreen() {
             >
               <View style={styles.iconContainer}>
                 <View style={styles.iconCircle}>
-                  <screen.icon size={64} color="#d4f1d4" strokeWidth={1.5} />
+                  <screen.icon size={64} color="#D4F1DB" strokeWidth={1.5} />
                 </View>
               </View>
 

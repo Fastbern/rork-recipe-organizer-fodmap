@@ -1,6 +1,6 @@
 const Colors = {
-  primary: '#4CAF50', // Fresh green
-  secondary: '#FF6B35', // Warm orange
+  primary: '#34A853', // Matched green from reference
+  secondary: '#FF6B35',
   background: '#FFFFFF',
   surface: '#F5F5F7',
   card: '#FFFFFF',
@@ -11,7 +11,7 @@ const Colors = {
     inverse: '#FFFFFF',
   },
   border: '#E0E0E0',
-  success: '#4CAF50',
+  success: '#34A853',
   warning: '#FFC107',
   error: '#F44336',
   favorite: '#E91E63',

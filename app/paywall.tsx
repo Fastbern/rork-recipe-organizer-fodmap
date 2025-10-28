@@ -8,9 +8,11 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import Colors from '@/constants/colors';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { Check, Sparkles, Heart, Shield } from 'lucide-react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -137,8 +139,14 @@ export default function PaywallScreen() {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={{ uri: 'https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=1600&auto=format&fit=crop' }}
+        style={StyleSheet.absoluteFillObject}
+        resizeMode="cover"
+        accessibilityIgnoresInvertColors
+      />
       <LinearGradient
-        colors={['#2d5016' as const, '#4a7c28' as const, '#5a8f30' as const]}
+        colors={[`#1E7D35CC`, `${Colors.primary}E6`, `#6FD17E` as const]}
         style={StyleSheet.absoluteFillObject}
       />
 
@@ -240,7 +248,7 @@ export default function PaywallScreen() {
             activeOpacity={0.8}
           >
             {isLoading ? (
-              <ActivityIndicator color="#4a7c28" />
+              <ActivityIndicator color={Colors.primary} />
             ) : (
               <Text style={styles.startButtonText}>Start my Free Trial</Text>
             )}
@@ -347,7 +355,7 @@ const styles = StyleSheet.create({
   },
   planCardSelected: {
     backgroundColor: '#FFFFFF',
-    borderColor: '#d4f1d4',
+    borderColor: '#D4F1DB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -361,13 +369,13 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     top: -10,
     alignSelf: 'center',
-    backgroundColor: '#d4f1d4',
+    backgroundColor: '#D4F1DB',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 10,
   },
   popularBadgeText: {
-    color: '#2d5016',
+    color: '#1E7D35',
     fontSize: 10,
     fontWeight: '800' as const,
     letterSpacing: 0.5,
@@ -387,12 +395,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   planTitleSelected: {
-    color: '#2d5016',
+    color: '#1E7D35',
   },
   planSavings: {
     fontSize: 13,
     fontWeight: '600' as const,
-    color: '#4a7c28',
+    color: Colors.primary,
   },
   planPricing: {
     flexDirection: 'row',
@@ -405,14 +413,14 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
   },
   planPriceSelected: {
-    color: '#2d5016',
+    color: '#1E7D35',
   },
   planPeriod: {
     fontSize: 16,
     color: '#666666',
   },
   planPeriodSelected: {
-    color: '#4a7c28',
+    color: Colors.primary,
   },
   planRadio: {
     width: 24,
@@ -424,14 +432,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   planRadioSelected: {
-    borderColor: '#4a7c28',
-    backgroundColor: '#d4f1d4',
+    borderColor: Colors.primary,
+    backgroundColor: '#D4F1DB',
   },
   planRadioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#4a7c28',
+    backgroundColor: Colors.primary,
   },
   featuresContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -489,7 +497,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   startButtonText: {
-    color: '#4a7c28',
+    color: Colors.primary,
     fontSize: 18,
     fontWeight: '700' as const,
   },
