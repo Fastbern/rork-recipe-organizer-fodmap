@@ -8,8 +8,9 @@ const app = new Hono();
 
 app.use("*", cors());
 
+// Mount tRPC under /api/* so /api/trpc works
 app.use(
-  "/trpc/*",
+  "/api/*",
   trpcServer({
     endpoint: "/api/trpc",
     router: appRouter,
