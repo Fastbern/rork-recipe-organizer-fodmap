@@ -6,14 +6,17 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
-import { TrendingUp, Clock, Star, Shield } from 'lucide-react-native';
+import { TrendingUp, Clock, Star, Shield, Wand2, Link as LinkIcon, ChefHat } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import SearchBar from '@/components/SearchBar';
 import { useRecipes } from '@/hooks/recipe-store';
 import { useFodmap } from '@/hooks/fodmap-store';
 import { FodmapRating } from '@/types/fodmap';
 import { router } from 'expo-router';
+import { trpc } from '@/lib/trpc';
 
 type ExploreFilter = 'low' | 'moderate' | 'high' | 'all' | 'quick' | 'top' | 'trending';
 
@@ -34,6 +37,8 @@ export default function ExploreScreen() {
   const { recipes, searchQuery, setSearchQuery } = useRecipes();
   const { dataset, isLoading } = useFodmap();
   const [selectedFilter, setSelectedFilter] = useState<ExploreFilter>('low');
+  const [aiMode, setAiMode] = useState<'suggest' | 'generate'>('suggest');
+  const aiSearch = trpc.recipe.searchLowFodmap.useMutation();
 
   const computeRecipeRating = useCallback((recipeId: string) => {
     try {
@@ -117,7 +122,117 @@ export default function ExploreScreen() {
         value={searchQuery}
         onChangeText={setSearchQuery}
         placeholder="Search Low FODMAP recipes..."
+        onSubmit={() => {
+          if (searchQuery.trim().length < 2) return;
+          aiSearch.mutate({ query: searchQuery.trim(), mode: aiMode });
+        }}
       />
+
+      {searchQuery.trim().length > 0 && (
+        <View style={styles.aiRow}>
+          <View style={styles.aiModeSwitcher}>
+            <TouchableOpacity
+              style={[styles.aiModeBtn, aiMode === 'suggest' && styles.aiModeBtnActive]}
+              onPress={() => setAiMode('suggest')}
+              testID="ai-mode-suggest"
+            >
+              <LinkIcon size={14} color={aiMode === 'suggest' ? Colors.text.inverse : Colors.text.primary} />
+              <Text style={[styles.aiModeText, aiMode === 'suggest' && styles.aiModeTextActive]}>Suggest</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.aiModeBtn, aiMode === 'generate' && styles.aiModeBtnActive]}
+              onPress={() => setAiMode('generate')}
+              testID="ai-mode-generate"
+            >
+              <ChefHat size={14} color={aiMode === 'generate' ? Colors.text.inverse : Colors.text.primary} />
+              <Text style={[styles.aiModeText, aiMode === 'generate' && styles.aiModeTextActive]}>Create</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={styles.askAiBtn}
+            onPress={() => aiSearch.mutate({ query: searchQuery.trim(), mode: aiMode })}
+            testID="ask-ai"
+          >
+            <Wand2 size={16} color={Colors.text.inverse} />
+            <Text style={styles.askAiText}>{aiMode === 'suggest' ? 'Ask AI' : 'Create with AI'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {aiSearch.isPending && (
+        <View style={styles.aiBox} testID="ai-loading">
+          <ActivityIndicator />
+          <Text style={styles.aiNote}>Thinking of Low FODMAP options...</Text>
+        </View>
+      )}
+
+      {aiSearch.error && (
+        <View style={styles.aiBox} testID="ai-error">
+          <Text style={styles.aiError}>Couldn’t reach AI. Check connection and try again.</Text>
+          <Text style={styles.aiErrorSmall}>{String(aiSearch.error.message || aiSearch.error)}</Text>
+        </View>
+      )}
+
+      {aiSearch.data?.type === 'suggestions' && (
+        <View style={styles.aiBox} testID="ai-suggestions">
+          <Text style={styles.sectionTitle}>AI Suggestions</Text>
+          {aiSearch.data.suggestions.map((s, idx) => (
+            <TouchableOpacity
+              key={(s.url || s.title) + idx}
+              style={styles.suggestionRow}
+              onPress={() => {
+                if (s.url) {
+                  Linking.openURL(s.url).catch(() => {});
+                }
+              }}
+            >
+              <Image
+                source={{ uri: s.imageUrl || 'https://images.unsplash.com/photo-1512058564366-18510be2db19?q=80&w=800&auto=format&fit=crop' }}
+                style={styles.suggestionImage}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.suggestionTitle} numberOfLines={2}>{s.title}</Text>
+                {s.source && <Text style={styles.suggestionSource}>{s.source}</Text>}
+                {s.summary && <Text style={styles.suggestionSummary} numberOfLines={2}>{s.summary}</Text>}
+                {s.url && <Text style={styles.suggestionUrl} numberOfLines={1}>{s.url}</Text>}
+              </View>
+            </TouchableOpacity>
+          ))}
+          {!!aiSearch.data.note && <Text style={styles.aiNote}>{aiSearch.data.note}</Text>}
+        </View>
+      )}
+
+      {aiSearch.data?.type === 'generated' && (
+        <View style={styles.aiBox} testID="ai-generated">
+          <Text style={styles.sectionTitle}>AI Created Recipe</Text>
+          <View style={styles.recipeCard}>
+            <Image
+              source={{ uri: aiSearch.data.recipe.imageUrl || 'https://images.unsplash.com/photo-1466637574441-749b8f19452f?q=80&w=800&auto=format&fit=crop' }}
+              style={styles.recipeImage}
+            />
+            <View style={styles.recipeContent}>
+              <Text style={styles.recipeTitle}>{aiSearch.data.recipe.title}</Text>
+              {aiSearch.data.recipe.description && (
+                <Text style={styles.recipeDescription} numberOfLines={2}>{aiSearch.data.recipe.description}</Text>
+              )}
+              <View style={styles.recipeMeta}>
+                {typeof aiSearch.data.recipe.prepTime === 'number' && (
+                  <View style={styles.metaItem}>
+                    <Clock size={14} color={Colors.text.secondary} />
+                    <Text style={styles.metaText}>{aiSearch.data.recipe.prepTime} min prep</Text>
+                  </View>
+                )}
+                {typeof aiSearch.data.recipe.cookTime === 'number' && (
+                  <View style={styles.metaItem}>
+                    <Clock size={14} color={Colors.text.secondary} />
+                    <Text style={styles.metaText}>{aiSearch.data.recipe.cookTime} min cook</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Explore FODMAP-Friendly</Text>
@@ -372,6 +487,100 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
+  },
+  aiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginTop: 4,
+    gap: 8,
+  },
+  aiModeSwitcher: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  aiModeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  aiModeBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  aiModeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.text.primary,
+  },
+  aiModeTextActive: {
+    color: Colors.text.inverse,
+  },
+  askAiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  askAiText: {
+    color: Colors.text.inverse,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  aiBox: {
+    backgroundColor: Colors.card,
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  aiNote: {
+    color: Colors.text.secondary,
+    fontSize: 12,
+  },
+  aiError: {
+    color: '#B00020',
+    fontWeight: '700',
+  },
+  aiErrorSmall: {
+    color: Colors.text.secondary,
+    fontSize: 12,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  suggestionImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  suggestionTitle: {
+    color: Colors.text.primary,
+    fontWeight: '700',
+  },
+  suggestionSource: {
+    color: Colors.text.secondary,
+    fontSize: 12,
+  },
+  suggestionSummary: {
+    color: Colors.text.secondary,
+    fontSize: 12,
+  },
+  suggestionUrl: {
+    color: Colors.text.secondary,
+    fontSize: 11,
   },
   tipTitle: {
     fontSize: 16,

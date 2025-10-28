@@ -12,12 +12,14 @@ interface SearchBarProps {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  onSubmit?: () => void;
 }
 
 export default function SearchBar({
   value,
   onChangeText,
   placeholder = 'Search recipes...',
+  onSubmit,
 }: SearchBarProps) {
   return (
     <View style={styles.container}>
@@ -28,6 +30,8 @@ export default function SearchBar({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={Colors.text.light}
+        returnKeyType="search"
+        onSubmitEditing={onSubmit}
         testID="search-input"
       />
       {value.length > 0 && (
