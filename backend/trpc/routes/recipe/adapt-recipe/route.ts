@@ -69,6 +69,12 @@ Return ONLY a valid JSON object with this structure:
   "notes": "Chef notes on substitutions"
 }`;
 
+    if (!process.env.EXPO_PUBLIC_TOOLKIT_URL) {
+      throw new Error(
+        'AI service is not configured. Set EXPO_PUBLIC_TOOLKIT_URL to enable recipe adaptation.'
+      );
+    }
+
     const responseText = await generateText({
       messages: [
         {
