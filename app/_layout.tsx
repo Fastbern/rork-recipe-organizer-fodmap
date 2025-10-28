@@ -8,7 +8,7 @@ import { FodmapProvider } from "@/hooks/fodmap-store";
 import { AdaptationProvider } from "@/hooks/adaptation-store";
 import { OnboardingProvider } from "@/hooks/onboarding-store";
 import { trpc, trpcClient } from "@/lib/trpc";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, LogBox } from "react-native";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -74,6 +74,9 @@ export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    LogBox.ignoreLogs([
+      "Deep imports from the 'react-native' package are deprecated",
+    ]);
     const prepare = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 100));
