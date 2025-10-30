@@ -353,6 +353,46 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     await storage.setItem(STORAGE_KEYS.GROCERY_LIST, JSON.stringify(updatedList));
   }, [groceryList]);
 
+  const addCustomGroceryItem = useCallback(async (item: { name: string; amount: string; unit?: string; quantity: number }) => {
+    const timestamp = Date.now();
+    const newIngredient: Ingredient = {
+      id: `custom-${timestamp}`,
+      name: item.name,
+      amount: item.amount,
+      unit: item.unit,
+    };
+    const newItem: GroceryItem = {
+      id: `grocery-${timestamp}`,
+      ingredient: newIngredient,
+      recipeIds: [],
+      isChecked: false,
+      quantity: item.quantity,
+    };
+    const updatedList = [...groceryList, newItem];
+    setGroceryList(updatedList);
+    await storage.setItem(STORAGE_KEYS.GROCERY_LIST, JSON.stringify(updatedList));
+  }, [groceryList]);
+
+  const updateGroceryQuantity = useCallback(async (itemId: string, quantity: number) => {
+    if (quantity === 0) {
+      const updatedList = groceryList.filter(item => item.id !== itemId);
+      setGroceryList(updatedList);
+      await storage.setItem(STORAGE_KEYS.GROCERY_LIST, JSON.stringify(updatedList));
+    } else {
+      const updatedList = groceryList.map(item =>
+        item.id === itemId ? { ...item, quantity } : item
+      );
+      setGroceryList(updatedList);
+      await storage.setItem(STORAGE_KEYS.GROCERY_LIST, JSON.stringify(updatedList));
+    }
+  }, [groceryList]);
+
+  const removeGroceryItem = useCallback(async (itemId: string) => {
+    const updatedList = groceryList.filter(item => item.id !== itemId);
+    setGroceryList(updatedList);
+    await storage.setItem(STORAGE_KEYS.GROCERY_LIST, JSON.stringify(updatedList));
+  }, [groceryList]);
+
   const signInWithApple = useCallback(async () => {
     try {
       console.log('[Auth] Starting Apple Sign-In');
@@ -467,9 +507,9 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     addToGroceryList,
     toggleGroceryItem,
     clearCheckedItems,
-    addCustomGroceryItem,
-    updateGroceryQuantity,
-    removeGroceryItem,
+    addCustomGroceryItem: addCustomGroceryItem,
+    updateGroceryQuantity: updateGroceryQuantity,
+    removeGroceryItem: removeGroceryItem,
     signInWithApple,
     signOut,
     
