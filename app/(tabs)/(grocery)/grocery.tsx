@@ -14,7 +14,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from 'react-native';
-import { Check, Trash2, ShoppingCart, Plus, Minus, X, PlusCircle } from 'lucide-react-native';
+import { Check, Trash2, ShoppingCart, Plus, Minus, PlusCircle, MoreVertical } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useRecipes } from '@/hooks/recipe-store';
 import { GroceryItem } from '@/types/recipe';
@@ -28,6 +28,7 @@ export default function GroceryScreen() {
   const [amount, setAmount] = useState<string>('');
   const [unit, setUnit] = useState<string>('');
   const [saving, setSaving] = useState<boolean>(false);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
 
   const openModal = useCallback(() => {
     setIsModalVisible(true);
@@ -56,49 +57,68 @@ export default function GroceryScreen() {
     }
   }, [name, amount, unit, addCustomGroceryItem]);
 
-  const renderItem = ({ item }: { item: GroceryItem }) => (
-    <TouchableOpacity
-      style={[styles.itemCard, item.isChecked && styles.itemChecked]}
-      onPress={() => toggleGroceryItem(item.id)}
-      testID={`grocery-item-${item.id}`}
-    >
-      <View style={[styles.checkbox, item.isChecked && styles.checkboxChecked]}>
-        {item.isChecked && <Check size={16} color={Colors.text.inverse} />}
-      </View>
-      <View style={styles.itemContent}>
-        <Text style={[styles.itemName, item.isChecked && styles.itemNameChecked]}>
-          {item.ingredient.name}
-        </Text>
-        <Text style={[styles.itemAmount, item.isChecked && styles.itemAmountChecked]}>
-          {item.ingredient.amount} {item.ingredient.unit || ''}
-        </Text>
-      </View>
-      <View style={styles.quantityControls}>
+  const renderItem = ({ item }: { item: GroceryItem }) => {
+    const isExpanded = expandedItemId === item.id;
+
+    return (
+      <View style={styles.itemWrapper}>
         <TouchableOpacity
-          onPress={(e) => { e.stopPropagation(); updateGroceryQuantity(item.id, Math.max(0, (item.quantity ?? 1) - 1)); }}
-          style={styles.qtyButton}
-          testID={`decrement-${item.id}`}
+          style={[styles.itemCard, item.isChecked && styles.itemChecked]}
+          onPress={() => toggleGroceryItem(item.id)}
+          testID={`grocery-item-${item.id}`}
         >
-          <Minus size={16} color={Colors.text.primary} />
+          <View style={[styles.checkbox, item.isChecked && styles.checkboxChecked]}>
+            {item.isChecked && <Check size={16} color={Colors.text.inverse} />}
+          </View>
+          <View style={styles.itemContent}>
+            <Text style={[styles.itemName, item.isChecked && styles.itemNameChecked]}>
+              {item.ingredient.name}
+            </Text>
+            <Text style={[styles.itemAmount, item.isChecked && styles.itemAmountChecked]}>
+              {item.ingredient.amount} {item.ingredient.unit || ''}
+            </Text>
+          </View>
+          <View style={styles.quantityControls}>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); updateGroceryQuantity(item.id, Math.max(0, (item.quantity ?? 1) - 1)); }}
+              style={styles.qtyButton}
+              testID={`decrement-${item.id}`}
+            >
+              <Minus size={16} color={Colors.text.primary} />
+            </TouchableOpacity>
+            <Text style={styles.qtyText}>{item.quantity ?? 1}</Text>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); updateGroceryQuantity(item.id, (item.quantity ?? 1) + 1); }}
+              style={styles.qtyButton}
+              testID={`increment-${item.id}`}
+            >
+              <Plus size={16} color={Colors.text.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={(e) => { e.stopPropagation(); setExpandedItemId(isExpanded ? null : item.id); }}
+              style={styles.moreButton}
+              testID={`more-${item.id}`}
+            >
+              <MoreVertical size={18} color={Colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-        <Text style={styles.qtyText}>{item.quantity ?? 1}</Text>
-        <TouchableOpacity
-          onPress={(e) => { e.stopPropagation(); updateGroceryQuantity(item.id, (item.quantity ?? 1) + 1); }}
-          style={styles.qtyButton}
-          testID={`increment-${item.id}`}
-        >
-          <Plus size={16} color={Colors.text.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={(e) => { e.stopPropagation(); removeGroceryItem(item.id); }}
-          style={styles.removeBtn}
-          testID={`remove-${item.id}`}
-        >
-          <X size={16} color={Colors.text.inverse} />
-        </TouchableOpacity>
+        {isExpanded && (
+          <TouchableOpacity
+            style={styles.deleteAction}
+            onPress={() => {
+              setExpandedItemId(null);
+              removeGroceryItem(item.id);
+            }}
+            testID={`remove-${item.id}`}
+          >
+            <Trash2 size={16} color={Colors.error} />
+            <Text style={styles.deleteText}>Delete item</Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   const checkedCount = useMemo(() => groceryList.filter(item => item.isChecked).length, [groceryList]);
 
@@ -237,7 +257,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     padding: 16,
     borderRadius: 12,
-    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -303,14 +322,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text.primary,
   },
-  removeBtn: {
+  moreButton: {
     marginLeft: 8,
-    backgroundColor: Colors.error,
-    paddingHorizontal: 8,
+    width: 32,
     height: 28,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+  itemWrapper: {
+    marginBottom: 8,
+  },
+  deleteAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginTop: 4,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  deleteText: {
+    fontSize: 14,
+    color: Colors.error,
+    fontWeight: '500',
   },
   emptyState: {
     flex: 1,
