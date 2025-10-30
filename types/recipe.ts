@@ -48,13 +48,27 @@ export interface Category {
   recipeCount: number;
 }
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface ConsumedItem {
+  id: string;
+  name: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  quantity?: string;
+  mealType?: MealType | 'other';
+}
+
 export interface MealPlan {
   id: string;
   date: string;
-  breakfast?: string; // recipe id
-  lunch?: string; // recipe id
-  dinner?: string; // recipe id
-  snack?: string; // recipe id
+  breakfast?: string[]; // recipe ids
+  lunch?: string[]; // recipe ids
+  dinner?: string[]; // recipe ids
+  snack?: string[]; // recipe ids
+  customItems?: ConsumedItem[];
 }
 
 export interface GroceryItem {

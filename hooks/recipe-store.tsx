@@ -1,7 +1,7 @@
 import createContextHook from '@nkzw/create-context-hook';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Recipe, Category, MealPlan, GroceryItem, Ingredient } from '@/types/recipe';
+import { Recipe, Category, MealPlan, GroceryItem, Ingredient, MealType, ConsumedItem } from '@/types/recipe';
 import { mockRecipes, mockCategories } from '@/mocks/recipes';
 import { Platform, Alert } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -482,6 +482,57 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     }));
   }, [recipesQuery.data, categoriesQuery.data]);
 
+  const upsertMealPlan = useCallback(async (date: string, updater: (prev: MealPlan | undefined) => MealPlan) => {
+    const plans = mealPlansQuery.data || [];
+    const existing = plans.find(p => p.date === date);
+    const next = updater(existing);
+    const updated = existing
+      ? plans.map(p => (p.date === date ? next : p))
+      : [...plans, next];
+    await storage.setItem(STORAGE_KEYS.MEAL_PLANS, JSON.stringify(updated));
+    queryClient.setQueryData(['mealPlans'], updated);
+    return next;
+  }, [mealPlansQuery.data, queryClient]);
+
+  const addRecipeToMeal = useCallback(async (date: string, meal: MealType, recipeId: string) => {
+    const id = `${date}`;
+    await upsertMealPlan(date, (prev) => {
+      const base: MealPlan = prev ?? { id, date, customItems: [] };
+      const current = (base[meal] ?? []) as string[];
+      const exists = current.includes(recipeId);
+      const nextMeal = exists ? current : [...current, recipeId];
+      return { ...base, [meal]: nextMeal };
+    });
+  }, [upsertMealPlan]);
+
+  const removeRecipeFromMeal = useCallback(async (date: string, meal: MealType, recipeId: string) => {
+    await upsertMealPlan(date, (prev) => {
+      const base: MealPlan = prev ?? { id: date, date, customItems: [] };
+      const current = (base[meal] ?? []) as string[];
+      const nextMeal = current.filter(id => id !== recipeId);
+      return { ...base, [meal]: nextMeal };
+    });
+  }, [upsertMealPlan]);
+
+  const addCustomConsumedItem = useCallback(async (date: string, item: Omit<ConsumedItem, 'id'>) => {
+    const timestamp = Date.now();
+    const newItem: ConsumedItem = { id: `consumed-${timestamp}`, ...item };
+    await upsertMealPlan(date, (prev) => {
+      const base: MealPlan = prev ?? { id: date, date, customItems: [] };
+      const nextItems = [...(base.customItems ?? []), newItem];
+      return { ...base, customItems: nextItems };
+    });
+    return newItem;
+  }, [upsertMealPlan]);
+
+  const removeConsumedItem = useCallback(async (date: string, itemId: string) => {
+    await upsertMealPlan(date, (prev) => {
+      const base: MealPlan = prev ?? { id: date, date, customItems: [] };
+      const nextItems = (base.customItems ?? []).filter(i => i.id !== itemId);
+      return { ...base, customItems: nextItems };
+    });
+  }, [upsertMealPlan]);
+
   return useMemo(() => ({
     recipes: recipesQuery.data || [],
     categories: categoriesWithRecipeCount,
@@ -504,6 +555,10 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     saveCategory: saveCategoryMutation.mutate,
     deleteCategory: deleteCategoryMutation.mutate,
     saveMealPlan: saveMealPlanMutation.mutate,
+    addRecipeToMeal,
+    removeRecipeFromMeal,
+    addCustomConsumedItem,
+    removeConsumedItem,
     addToGroceryList,
     toggleGroceryItem,
     clearCheckedItems,
@@ -539,6 +594,10 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     saveCategoryMutation.mutate,
     deleteCategoryMutation.mutate,
     saveMealPlanMutation.mutate,
+    addRecipeToMeal,
+    removeRecipeFromMeal,
+    addCustomConsumedItem,
+    removeConsumedItem,
     addToGroceryList,
     toggleGroceryItem,
     clearCheckedItems,

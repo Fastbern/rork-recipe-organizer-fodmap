@@ -10,7 +10,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
-import { Heart, Clock, Users, Camera, FolderOpen } from 'lucide-react-native';
+import { Heart, Clock, Users, Camera, FolderOpen, Plus } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Colors from '@/constants/colors';
 import { Recipe } from '@/types/recipe';
@@ -24,9 +24,10 @@ interface RecipeCardProps {
 
 export default function RecipeCard({ recipe, onPress, onToggleFavorite }: RecipeCardProps) {
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
-  const { updateRecipeImage, updateRecipeCategory, categories } = useRecipes();
+  const { updateRecipeImage, updateRecipeCategory, categories, addRecipeToMeal } = useRecipes();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [showAddToPlan, setShowAddToPlan] = useState(false);
 
   const handleImageUpload = async (e: any) => {
     e.persist();
@@ -233,6 +234,18 @@ export default function RecipeCard({ recipe, onPress, onToggleFavorite }: Recipe
             ))}
           </View>
         )}
+
+        <TouchableOpacity
+          style={styles.addPlanBtn}
+          onPress={(e) => {
+            e.stopPropagation();
+            setShowAddToPlan(true);
+          }}
+          testID="add-to-plan"
+        >
+          <Plus size={14} color={Colors.text.inverse} />
+          <Text style={styles.addPlanText}>Add to today</Text>
+        </TouchableOpacity>
       </View>
       </TouchableOpacity>
 
@@ -296,6 +309,30 @@ export default function RecipeCard({ recipe, onPress, onToggleFavorite }: Recipe
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showAddToPlan} transparent animationType="fade" onRequestClose={() => setShowAddToPlan(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddToPlan(false)}>
+          <View style={styles.smallModal}>
+            <Text style={styles.modalTitle}>Add to Today</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {(['breakfast','lunch','dinner','snack'] as const).map(meal => (
+                <TouchableOpacity
+                  key={meal}
+                  style={styles.mealBadge}
+                  onPress={async () => {
+                    const today = new Date().toISOString().split('T')[0];
+                    await addRecipeToMeal(today, meal, recipe.id);
+                    setShowAddToPlan(false);
+                  }}
+                  testID={`add-today-${meal}`}
+                >
+                  <Text style={styles.mealBadgeText}>{meal}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -409,6 +446,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
+  addPlanBtn: {
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addPlanText: {
+    color: Colors.text.inverse,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   categoryChip: {
     backgroundColor: Colors.surface,
     paddingHorizontal: 8,
@@ -440,6 +493,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
+  },
+  smallModal: {
+    backgroundColor: Colors.card,
+    padding: 16,
+    borderRadius: 12,
+    width: '90%',
+    maxWidth: 360,
+    gap: 12,
+  },
+  mealBadge: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  mealBadgeText: {
+    color: Colors.text.primary,
+    fontWeight: '600',
+    textTransform: 'capitalize' as const,
   },
   modalHeader: {
     flexDirection: 'row',
