@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,118 +6,278 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
-import { TrendingUp, Clock, Star } from 'lucide-react-native';
+import { Sparkles, ChefHat, Filter, X } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import SearchBar from '@/components/SearchBar';
 import { useRecipes } from '@/hooks/recipe-store';
 import { router } from 'expo-router';
+import { trpc } from '@/lib/trpc';
+
+type MealTypeFilter = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert';
 
 export default function ExploreScreen() {
-  const { recipes, searchQuery, setSearchQuery } = useRecipes();
-  const [selectedFilter, setSelectedFilter] = React.useState<'trending' | 'quick' | 'top'>('trending');
+  const { recipes, aiRecipesGenerated, saveGeneratedRecipes } = useRecipes();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMealType, setSelectedMealType] = useState<MealTypeFilter>('all');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
 
-  const trendingRecipes = recipes.slice(0, 3);
-  const quickRecipes = recipes.filter(r => ((r.prepTime || 0) + (r.cookTime || 0)) <= 30);
-  const topRatedRecipes = recipes.filter(r => r.rating === 5);
-
-  const filters = [
-    { id: 'trending', label: 'Trending', icon: TrendingUp },
-    { id: 'quick', label: 'Quick & Easy', icon: Clock },
-    { id: 'top', label: 'Top Rated', icon: Star },
+  const mealTypeFilters: { id: MealTypeFilter; label: string; emoji: string }[] = [
+    { id: 'all', label: 'All', emoji: '🍽️' },
+    { id: 'breakfast', label: 'Breakfast', emoji: '🍳' },
+    { id: 'lunch', label: 'Lunch', emoji: '🥗' },
+    { id: 'dinner', label: 'Dinner', emoji: '🍝' },
+    { id: 'snack', label: 'Snacks', emoji: '🥨' },
+    { id: 'dessert', label: 'Desserts', emoji: '🍰' },
   ];
 
-  const getFilteredRecipes = () => {
-    switch (selectedFilter) {
-      case 'quick':
-        return quickRecipes;
-      case 'top':
-        return topRatedRecipes;
-      default:
-        return trendingRecipes;
+  const filteredRecipes = useMemo(() => {
+    let filtered = recipes;
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (r) =>
+          r.title.toLowerCase().includes(query) ||
+          r.description?.toLowerCase().includes(query) ||
+          r.tags.some((t) => t.toLowerCase().includes(query)) ||
+          r.ingredients.some((i) => i.name.toLowerCase().includes(query))
+      );
+    }
+
+    if (selectedMealType !== 'all') {
+      filtered = filtered.filter((r) => r.tags.includes(selectedMealType));
+    }
+
+    return filtered;
+  }, [recipes, searchQuery, selectedMealType]);
+
+  const generateRecipesMutation = trpc.recipe.generateRecipes.useMutation();
+
+  const handleGenerateRecipes = async () => {
+    if (aiRecipesGenerated) {
+      Alert.alert(
+        'Recipes Already Generated',
+        'You already have AI-generated recipes in your collection. Would you like to generate more?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Generate More', onPress: () => startGeneration() },
+        ]
+      );
+    } else {
+      startGeneration();
     }
   };
 
-  const displayedRecipes = getFilteredRecipes();
+  const startGeneration = async () => {
+    setIsGenerating(true);
+    setGenerationProgress(0);
+
+    try {
+      console.log('[Explore] Starting AI recipe generation - 100 recipes');
+
+      const batchSize = 10;
+      const totalBatches = 10;
+      const allRecipes = [];
+
+      for (let batch = 1; batch <= totalBatches; batch++) {
+        console.log(`[Explore] Generating batch ${batch}/${totalBatches}`);
+        setGenerationProgress((batch - 1) / totalBatches);
+
+        const result = await generateRecipesMutation.mutateAsync({
+          count: batchSize,
+          batchNumber: batch,
+        });
+
+        allRecipes.push(...result);
+        console.log(`[Explore] Batch ${batch} completed. Total recipes: ${allRecipes.length}`);
+      }
+
+      await saveGeneratedRecipes(allRecipes);
+      setGenerationProgress(1);
+
+      Alert.alert(
+        'Success! 🎉',
+        `Generated ${allRecipes.length} unique low-FODMAP recipes! Start exploring now.`,
+        [{ text: 'Explore Recipes', onPress: () => setIsGenerating(false) }]
+      );
+
+      console.log('[Explore] All recipes generated and saved successfully');
+    } catch (error) {
+      console.error('[Explore] Recipe generation failed:', error);
+      Alert.alert(
+        'Generation Failed',
+        'Unable to generate recipes. Please check your connection and try again.',
+        [{ text: 'OK', onPress: () => setIsGenerating(false) }]
+      );
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(0);
+    }
+  };
+
+  if (isGenerating) {
+    return (
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingCard}>
+          <Sparkles size={48} color={Colors.primary} />
+          <Text style={styles.loadingTitle}>Creating Amazing Recipes</Text>
+          <Text style={styles.loadingSubtitle}>
+            Generating {Math.floor(generationProgress * 100)} unique low-FODMAP recipes...
+          </Text>
+          <View style={styles.progressBarContainer}>
+            <View
+              style={[
+                styles.progressBar,
+                { width: `${Math.floor(generationProgress * 100)}%` },
+              ]}
+            />
+          </View>
+          <Text style={styles.loadingHint}>This may take a few minutes</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <SearchBar
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        placeholder="Discover new recipes..."
-      />
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search recipes, ingredients..."
+        />
 
-      <View style={styles.filterContainer}>
-        {filters.map((filter) => {
-          const Icon = filter.icon;
-          const isSelected = selectedFilter === filter.id;
-          return (
-            <TouchableOpacity
-              key={filter.id}
-              style={[styles.filterButton, isSelected && styles.filterButtonActive]}
-              onPress={() => setSelectedFilter(filter.id as any)}
-            >
-              <Icon size={18} color={isSelected ? Colors.text.inverse : Colors.text.primary} />
-              <Text style={[styles.filterText, isSelected && styles.filterTextActive]}>
-                {filter.label}
+        {!aiRecipesGenerated && (
+          <View style={styles.heroCard}>
+            <View style={styles.heroContent}>
+              <ChefHat size={40} color={Colors.primary} />
+              <Text style={styles.heroTitle}>Discover 100 Low-FODMAP Recipes</Text>
+              <Text style={styles.heroDescription}>
+                AI-powered recipes tailored for your dietary needs. Delicious, safe, and easy to
+                make.
               </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Discover New Flavors</Text>
-        <Text style={styles.sectionSubtitle}>
-          Explore recipes from around the world
-        </Text>
-      </View>
-
-      {displayedRecipes.map((recipe) => (
-        <TouchableOpacity
-          key={recipe.id}
-          style={styles.recipeCard}
-          onPress={() => router.push(`/recipe/${recipe.id}`)}
-        >
-          <Image
-            source={{ uri: recipe.imageUrl || 'https://via.placeholder.com/150' }}
-            style={styles.recipeImage}
-          />
-          <View style={styles.recipeContent}>
-            <Text style={styles.recipeTitle}>{recipe.title}</Text>
-            {recipe.description && (
-              <Text style={styles.recipeDescription} numberOfLines={2}>
-                {recipe.description}
-              </Text>
-            )}
-            <View style={styles.recipeMeta}>
-              {recipe.prepTime && recipe.cookTime && (
-                <View style={styles.metaItem}>
-                  <Clock size={14} color={Colors.text.secondary} />
-                  <Text style={styles.metaText}>
-                    {recipe.prepTime + recipe.cookTime} min
-                  </Text>
-                </View>
-              )}
-              {recipe.rating && (
-                <View style={styles.metaItem}>
-                  <Star size={14} color="#FFB800" fill="#FFB800" />
-                  <Text style={styles.metaText}>{recipe.rating}.0</Text>
-                </View>
-              )}
+              <TouchableOpacity
+                style={styles.generateButton}
+                onPress={handleGenerateRecipes}
+              >
+                <Sparkles size={20} color="#fff" />
+                <Text style={styles.generateButtonText}>Generate Recipes</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
-      ))}
+        )}
 
-      <View style={styles.tipCard}>
-        <Text style={styles.tipTitle}>💡 Pro Tip</Text>
-        <Text style={styles.tipText}>
-          Save recipes from any website by sharing the URL to our app!
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.filterSection}>
+          <View style={styles.filterHeader}>
+            <Filter size={18} color={Colors.text.primary} />
+            <Text style={styles.filterTitle}>Filter by Meal Type</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterScrollContent}
+          >
+            {mealTypeFilters.map((filter) => {
+              const isSelected = selectedMealType === filter.id;
+              return (
+                <TouchableOpacity
+                  key={filter.id}
+                  style={[
+                    styles.filterChip,
+                    isSelected && styles.filterChipActive,
+                  ]}
+                  onPress={() => setSelectedMealType(filter.id)}
+                >
+                  <Text style={styles.filterEmoji}>{filter.emoji}</Text>
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      isSelected && styles.filterLabelActive,
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                  {isSelected && <X size={14} color="#fff" />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        <View style={styles.resultsSection}>
+          <Text style={styles.resultsTitle}>
+            {filteredRecipes.length} Recipe{filteredRecipes.length !== 1 ? 's' : ''} Found
+          </Text>
+        </View>
+
+        {filteredRecipes.length === 0 ? (
+          <View style={styles.emptyState}>
+            <ChefHat size={64} color={Colors.text.light} />
+            <Text style={styles.emptyTitle}>No Recipes Found</Text>
+            <Text style={styles.emptyDescription}>
+              {searchQuery
+                ? 'Try adjusting your search or filters'
+                : 'Generate AI recipes to get started'}
+            </Text>
+            {!aiRecipesGenerated && (
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={handleGenerateRecipes}
+              >
+                <Text style={styles.emptyButtonText}>Generate Recipes</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.recipeGrid}>
+            {filteredRecipes.map((recipe) => (
+              <TouchableOpacity
+                key={recipe.id}
+                style={styles.recipeCard}
+                onPress={() => router.push(`/recipe/${recipe.id}`)}
+              >
+                <Image
+                  source={{
+                    uri: recipe.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
+                  }}
+                  style={styles.recipeImage}
+                />
+                <View style={styles.recipeOverlay}>
+                  <View style={styles.recipeBadge}>
+                    <Text style={styles.recipeBadgeText}>Low FODMAP</Text>
+                  </View>
+                </View>
+                <View style={styles.recipeContent}>
+                  <Text style={styles.recipeTitle} numberOfLines={2}>
+                    {recipe.title}
+                  </Text>
+                  {recipe.description && (
+                    <Text style={styles.recipeDescription} numberOfLines={2}>
+                      {recipe.description}
+                    </Text>
+                  )}
+                  <View style={styles.recipeMeta}>
+                    {recipe.prepTime !== undefined && recipe.cookTime !== undefined && (
+                      <Text style={styles.metaText}>
+                        ⏱️ {recipe.prepTime + recipe.cookTime} min
+                      </Text>
+                    )}
+                    {recipe.servings && (
+                      <Text style={styles.metaText}>👥 {recipe.servings} servings</Text>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -126,115 +286,249 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginVertical: 12,
-    gap: 8,
-  },
-  filterButton: {
+  loadingContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.surface,
-    gap: 6,
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    padding: 24,
   },
-  filterButtonActive: {
-    backgroundColor: Colors.primary,
+  loadingCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  filterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.text.primary,
-  },
-  filterTextActive: {
-    color: Colors.text.inverse,
-  },
-  section: {
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 12,
-  },
-  sectionTitle: {
+  loadingTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: Colors.text.primary,
-    marginBottom: 4,
+    marginTop: 16,
+    textAlign: 'center',
   },
-  sectionSubtitle: {
-    fontSize: 14,
+  loadingSubtitle: {
+    fontSize: 16,
     color: Colors.text.secondary,
+    marginTop: 8,
+    textAlign: 'center',
   },
-  recipeCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.card,
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 4,
+    marginTop: 24,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 4,
+  },
+  loadingHint: {
+    fontSize: 14,
+    color: Colors.text.light,
+    marginTop: 12,
+    fontStyle: 'italic' as const,
+  },
+  heroCard: {
+    backgroundColor: Colors.primary + '10',
     marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 16,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    marginVertical: 12,
+    borderRadius: 20,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: Colors.primary + '30',
   },
-  recipeImage: {
-    width: 100,
-    height: 100,
+  heroContent: {
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  heroDescription: {
+    fontSize: 15,
+    color: Colors.text.secondary,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  generateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
     borderRadius: 12,
+    marginTop: 20,
+    gap: 8,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  recipeContent: {
-    flex: 1,
-    marginLeft: 12,
-    justifyContent: 'space-between',
+  generateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
-  recipeTitle: {
+  filterSection: {
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  filterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 8,
+  },
+  filterTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text.primary,
-    marginBottom: 4,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  filterEmoji: {
+    fontSize: 16,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text.primary,
+  },
+  filterLabelActive: {
+    color: '#fff',
+  },
+  resultsSection: {
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.text.primary,
+  },
+  recipeGrid: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  recipeCard: {
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  recipeImage: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.surface,
+  },
+  recipeOverlay: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
+  recipeBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  recipeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  recipeContent: {
+    padding: 16,
+  },
+  recipeTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text.primary,
+    marginBottom: 6,
   },
   recipeDescription: {
-    fontSize: 13,
+    fontSize: 14,
     color: Colors.text.secondary,
-    lineHeight: 18,
-    marginBottom: 8,
+    lineHeight: 20,
+    marginBottom: 12,
   },
   recipeMeta: {
     flexDirection: 'row',
     gap: 16,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+    flexWrap: 'wrap',
   },
   metaText: {
-    fontSize: 12,
+    fontSize: 13,
     color: Colors.text.secondary,
+    fontWeight: '500',
   },
-  tipCard: {
-    backgroundColor: Colors.primary + '15',
-    marginHorizontal: 16,
-    marginVertical: 24,
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    paddingHorizontal: 32,
   },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
     color: Colors.text.primary,
-    marginBottom: 8,
+    marginTop: 16,
   },
-  tipText: {
-    fontSize: 14,
+  emptyDescription: {
+    fontSize: 15,
     color: Colors.text.secondary,
-    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 22,
+  },
+  emptyButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginTop: 20,
+  },
+  emptyButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
