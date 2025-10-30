@@ -13,6 +13,7 @@ import { Check, Trash2, ShoppingCart, Plus, Minus, X, PlusCircle } from 'lucide-
 import Colors from '@/constants/colors';
 import { useRecipes } from '@/hooks/recipe-store';
 import { GroceryItem } from '@/types/recipe';
+import { Stack, router } from 'expo-router';
 
 export default function GroceryScreen() {
   const { groceryList, toggleGroceryItem, clearCheckedItems, addCustomGroceryItem, updateGroceryQuantity, removeGroceryItem } = useRecipes();
@@ -98,6 +99,15 @@ export default function GroceryScreen() {
 
   return (
     <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <TouchableOpacity onPress={openModal} testID="header-add-grocery-item" style={styles.headerAddBtn}>
+              <Plus size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       {groceryList.length === 0 ? (
         <View style={styles.emptyState}>
           <ShoppingCart size={48} color={Colors.text.light} />
@@ -133,7 +143,7 @@ export default function GroceryScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity style={styles.fab} onPress={openModal} testID="open-add-item">
+          <TouchableOpacity style={styles.fab} onPress={() => router.push('/add-recipe')} testID="quick-add-recipe">
             <Plus size={24} color={Colors.text.inverse} />
           </TouchableOpacity>
         </>
@@ -327,6 +337,11 @@ const styles = StyleSheet.create({
   clearButtonText: {
     color: Colors.text.inverse,
     fontWeight: '600',
+  },
+  headerAddBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   fab: {
     position: 'absolute',
