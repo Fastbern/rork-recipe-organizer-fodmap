@@ -56,13 +56,7 @@ export default function HomeScreen() {
                   fill={showFavoritesOnly ? Colors.favorite : 'transparent'}
                 />
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleAddRecipe}
-                style={styles.headerButton}
-                testID="add-recipe"
-              >
-                <Plus size={24} color={Colors.primary} />
-              </TouchableOpacity>
+
             </View>
           ),
         }}

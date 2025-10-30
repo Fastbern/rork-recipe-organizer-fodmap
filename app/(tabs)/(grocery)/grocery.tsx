@@ -8,6 +8,11 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { Check, Trash2, ShoppingCart, Plus, Minus, X, PlusCircle } from 'lucide-react-native';
 import Colors from '@/constants/colors';
@@ -150,59 +155,68 @@ export default function GroceryScreen() {
       )}
 
       <Modal visible={isModalVisible} animationType="slide" transparent onRequestClose={closeModal}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add custom item</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="e.g. Bananas"
-                placeholderTextColor={Colors.text.light}
-                style={styles.input}
-                autoCapitalize="words"
-                testID="input-name"
-              />
-            </View>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Amount</Text>
-                <TextInput
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder="e.g. 6"
-                  placeholderTextColor={Colors.text.light}
-                  style={styles.input}
-                  keyboardType="numbers-and-punctuation"
-                  testID="input-amount"
-                />
-              </View>
-              <View style={{ width: 12 }} />
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Unit</Text>
-                <TextInput
-                  value={unit}
-                  onChangeText={setUnit}
-                  placeholder="e.g. pcs, lbs, kg"
-                  placeholderTextColor={Colors.text.light}
-                  style={styles.input}
-                  autoCapitalize="none"
-                  testID="input-unit"
-                />
-              </View>
-            </View>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={80}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalCard}>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 12 }}>
+                <Text style={styles.modalTitle}>Add custom item</Text>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Name</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="e.g. Bananas"
+                    placeholderTextColor={Colors.text.light}
+                    style={styles.input}
+                    autoCapitalize="words"
+                    autoFocus
+                    testID="input-name"
+                  />
+                </View>
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>Amount</Text>
+                    <TextInput
+                      value={amount}
+                      onChangeText={setAmount}
+                      placeholder="e.g. 6"
+                      placeholderTextColor={Colors.text.light}
+                      style={styles.input}
+                      keyboardType="numbers-and-punctuation"
+                      testID="input-amount"
+                    />
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.label}>Unit</Text>
+                    <TextInput
+                      value={unit}
+                      onChangeText={setUnit}
+                      placeholder="e.g. pcs, lbs, kg"
+                      placeholderTextColor={Colors.text.light}
+                      style={styles.input}
+                      autoCapitalize="none"
+                      testID="input-unit"
+                    />
+                  </View>
+                </View>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity onPress={closeModal} style={[styles.actionBtn, styles.cancelBtn]} testID="cancel-add-item">
-                <Text style={styles.actionTextCancel}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={submitCustomItem} disabled={saving} style={[styles.actionBtn, styles.saveBtn]} testID="save-add-item">
-                <Text style={styles.actionTextSave}>{saving ? 'Adding…' : 'Add item'}</Text>
-              </TouchableOpacity>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity onPress={closeModal} style={[styles.actionBtn, styles.cancelBtn]} testID="cancel-add-item">
+                    <Text style={styles.actionTextCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={submitCustomItem} disabled={saving} style={[styles.actionBtn, styles.saveBtn]} testID="save-add-item">
+                    <Text style={styles.actionTextSave}>{saving ? 'Adding…' : 'Add item'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
