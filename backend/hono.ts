@@ -8,8 +8,9 @@ const app = new Hono();
 
 app.use("*", cors());
 
+// Mount tRPC exactly where the client expects it: /api/trpc
 app.use(
-  "/trpc/*",
+  "/api/trpc/*",
   trpcServer({
     endpoint: "/api/trpc",
     router: appRouter,
