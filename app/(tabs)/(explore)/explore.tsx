@@ -14,8 +14,20 @@ import SearchBar from '@/components/SearchBar';
 import { useRecipes } from '@/hooks/recipe-store';
 import { router } from 'expo-router';
 import { trpc } from '@/lib/trpc';
+import { generateText } from '@rork/toolkit-sdk';
 
 type MealTypeFilter = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert';
+
+interface LocalGeneratedRecipe {
+  title: string;
+  description?: string;
+  mealType: string;
+  ingredients: { name: string; amount: string; unit?: string }[];
+  instructions: string[];
+  prepTime?: number;
+  cookTime?: number;
+  servings?: number;
+}
 
 export default function ExploreScreen() {
   const { recipes, aiRecipesGenerated, saveGeneratedRecipes } = useRecipes();
@@ -80,18 +92,24 @@ export default function ExploreScreen() {
 
       const batchSize = 10;
       const totalBatches = 10;
-      const allRecipes = [];
+      const allRecipes: any[] = [];
 
       for (let batch = 1; batch <= totalBatches; batch++) {
         console.log(`[Explore] Generating batch ${batch}/${totalBatches}`);
         setGenerationProgress((batch - 1) / totalBatches);
 
-        const result = await generateRecipesMutation.mutateAsync({
-          count: batchSize,
-          batchNumber: batch,
-        });
+        try {
+          const result = await generateRecipesMutation.mutateAsync({
+            count: batchSize,
+            batchNumber: batch,
+          });
+          allRecipes.push(...result);
+        } catch (err) {
+          console.warn('[Explore] tRPC generation failed, falling back to local AI:', err);
+          const local = await generateLocalRecipes(batchSize, batch);
+          allRecipes.push(...local);
+        }
 
-        allRecipes.push(...result);
         console.log(`[Explore] Batch ${batch} completed. Total recipes: ${allRecipes.length}`);
       }
 
@@ -117,6 +135,109 @@ export default function ExploreScreen() {
       setGenerationProgress(0);
     }
   };
+
+  async function generateLocalRecipes(count: number, batchNumber: number) {
+    const prompt = `Generate ${count} unique and creative low-FODMAP recipes for batch ${batchNumber}.
+
+IMPORTANT REQUIREMENTS:
+- All recipes MUST use ONLY low-FODMAP ingredients
+- Each recipe must be completely unique and creative
+- Use varied cooking techniques and international cuisines
+- Include meal types: breakfast, lunch, dinner, snack, dessert
+- Make recipes practical and realistic
+- Ensure accurate cooking times and servings
+
+Return a valid JSON array with ${count} recipe objects. Each recipe must have this exact structure:
+{
+  "title": "Creative recipe name",
+  "description": "Brief appetizing description (1-2 sentences)",
+  "mealType": "breakfast|lunch|dinner|snack|dessert",
+  "ingredients": [
+    { "name": "ingredient name", "amount": "quantity", "unit": "measurement unit (optional)" }
+  ],
+  "instructions": ["Step 1 instruction", "Step 2 instruction"],
+  "prepTime": number,
+  "cookTime": number,
+  "servings": number
+}
+
+Return ONLY the JSON array, no additional text or explanation.`;
+
+    const response = await generateText({
+      messages: [
+        { role: 'user', content: prompt },
+      ],
+    });
+
+    let cleaned = response.trim();
+    if (cleaned.startsWith('```json')) cleaned = cleaned.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+    else if (cleaned.startsWith('```')) cleaned = cleaned.replace(/```\n?/g, '');
+
+    const parsed = JSON.parse(cleaned) as LocalGeneratedRecipe[];
+
+    const imageByMeal: Record<string, string[]> = {
+      breakfast: [
+        'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800',
+        'https://images.unsplash.com/photo-1525351484163-7529414344d8?w=800',
+      ],
+      lunch: [
+        'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800',
+        'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=800',
+      ],
+      dinner: [
+        'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800',
+        'https://images.unsplash.com/photo-1476224203421-9ac39bcb3327?w=800',
+      ],
+      snack: [
+        'https://images.unsplash.com/photo-1599490659213-e2b9527bd087?w=800',
+        'https://images.unsplash.com/photo-1559181567-c3190ca9959b?w=800',
+      ],
+      dessert: [
+        'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=800',
+        'https://images.unsplash.com/photo-1551024506-0bccd828d307?w=800',
+      ],
+    };
+
+    const pick = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
+    return parsed.map((r, idx) => {
+      const id = `ai-local-${batchNumber}-${Date.now()}-${idx}`;
+      return {
+        id,
+        title: r.title,
+        description: r.description ?? '',
+        imageUrl: pick(imageByMeal[r.mealType] ?? imageByMeal.lunch),
+        sourcePlatform: 'manual' as const,
+        prepTime: r.prepTime ?? 15,
+        cookTime: r.cookTime ?? 30,
+        servings: r.servings ?? 4,
+        ingredients: r.ingredients.map((ing, i) => ({
+          id: `${id}-ing-${i}`,
+          name: ing.name,
+          amount: ing.amount,
+          unit: ing.unit ?? '',
+          category: 'other' as const,
+        })),
+        instructions: r.instructions,
+        nutrition: {
+          calories: 400,
+          protein: 20,
+          carbs: 40,
+          fat: 15,
+          fiber: 6,
+          sugar: 8,
+          sodium: 500,
+        },
+        categories: [r.mealType, 'Low FODMAP'],
+        tags: ['low-fodmap', 'ai-generated', r.mealType],
+        rating: 5,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isFavorite: false,
+      };
+    });
+  }
+
 
   if (isGenerating) {
     return (
