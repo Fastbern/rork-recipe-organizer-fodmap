@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,15 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  TextInput,
+  Platform,
 } from 'react-native';
-import { Sparkles, ChefHat, Filter, X } from 'lucide-react-native';
+import { Sparkles, ChefHat, RotateCcw, CheckCircle2 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import SearchBar from '@/components/SearchBar';
 import { useRecipes } from '@/hooks/recipe-store';
-import { router } from 'expo-router';
+import { router, useNavigation } from 'expo-router';
 import { trpc } from '@/lib/trpc';
 import { generateText } from '@rork/toolkit-sdk';
-
-type MealTypeFilter = 'all' | 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'dessert';
 
 interface LocalGeneratedRecipe {
   title: string;
@@ -30,52 +29,45 @@ interface LocalGeneratedRecipe {
 }
 
 export default function ExploreScreen() {
-  const { recipes, aiRecipesGenerated, saveGeneratedRecipes } = useRecipes();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMealType, setSelectedMealType] = useState<MealTypeFilter>('all');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
+  const navigation = useNavigation();
+  const { recipes, aiRecipesGenerated, saveGeneratedRecipes, categories } = useRecipes();
 
-  const mealTypeFilters: { id: MealTypeFilter; label: string; emoji: string }[] = [
-    { id: 'all', label: 'All', emoji: '🍽️' },
-    { id: 'breakfast', label: 'Breakfast', emoji: '🍳' },
-    { id: 'lunch', label: 'Lunch', emoji: '🥗' },
-    { id: 'dinner', label: 'Dinner', emoji: '🍝' },
-    { id: 'snack', label: 'Snacks', emoji: '🥨' },
-    { id: 'dessert', label: 'Desserts', emoji: '🍰' },
-  ];
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generationProgress, setGenerationProgress] = useState<number>(0);
 
-  const filteredRecipes = useMemo(() => {
-    let filtered = recipes;
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [queryMode, setQueryMode] = useState<'name' | 'ingredients' | null>(null);
+  const [recipeName, setRecipeName] = useState<string>('');
+  const [ingredientText, setIngredientText] = useState<string>('');
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (r) =>
-          r.title.toLowerCase().includes(query) ||
-          r.description?.toLowerCase().includes(query) ||
-          r.tags.some((t) => t.toLowerCase().includes(query)) ||
-          r.ingredients.some((i) => i.name.toLowerCase().includes(query))
-      );
-    }
-
-    if (selectedMealType !== 'all') {
-      filtered = filtered.filter((r) => r.tags.includes(selectedMealType));
-    }
-
-    return filtered;
-  }, [recipes, searchQuery, selectedMealType]);
+  const allRecipes = useMemo(() => recipes, [recipes]);
 
   const generateRecipesMutation = trpc.recipe.generateRecipes.useMutation();
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={handleReset}
+          style={styles.resetBtn}
+          testID="explore-reset"
+        >
+          <RotateCcw size={18} color={Colors.text.primary} />
+          <Text style={styles.resetText}>Reset</Text>
+        </TouchableOpacity>
+      ),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
 
   const handleGenerateRecipes = async () => {
     if (aiRecipesGenerated) {
       Alert.alert(
         'Recipes Already Generated',
-        'You already have AI-generated recipes in your collection. Would you like to generate more?',
+        'You already have AI-generated recipes in your collection. Generate 10 more based on your answers?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Generate More', onPress: () => startGeneration() },
+          { text: 'Generate', onPress: () => startGeneration() },
         ]
       );
     } else {
@@ -83,46 +75,64 @@ export default function ExploreScreen() {
     }
   };
 
+  function handleReset() {
+    setSelectedCategories([]);
+    setQueryMode(null);
+    setRecipeName('');
+    setIngredientText('');
+  }
+
   const startGeneration = async () => {
+    const hasQuery = queryMode && (recipeName.trim().length > 0 || ingredientText.trim().length > 0);
+    if (!hasQuery) {
+      Alert.alert('Add details', 'Enter a recipe name or some ingredients.');
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationProgress(0);
 
     try {
-      console.log('[Explore] Starting AI recipe generation - 100 recipes');
+      console.log('[Explore] Starting AI recipe generation - 10 recipes with guided filters');
 
       const batchSize = 10;
-      const totalBatches = 10;
-      const allRecipes: any[] = [];
+      const batchNumber = 1;
+      let created: any[] = [];
 
-      for (let batch = 1; batch <= totalBatches; batch++) {
-        console.log(`[Explore] Generating batch ${batch}/${totalBatches}`);
-        setGenerationProgress((batch - 1) / totalBatches);
+      try {
+        const includeHints: string[] = [];
+        const ingredientHints = ingredientText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
 
-        try {
-          const result = await generateRecipesMutation.mutateAsync({
-            count: batchSize,
-            batchNumber: batch,
-          });
-          allRecipes.push(...result);
-        } catch (err) {
-          console.warn('[Explore] tRPC generation failed, falling back to local AI:', err);
-          const local = await generateLocalRecipes(batchSize, batch);
-          allRecipes.push(...local);
-        }
+        if (queryMode === 'name' && recipeName.trim().length > 0) includeHints.push(recipeName.trim());
+        includeHints.push(...ingredientHints);
 
-        console.log(`[Explore] Batch ${batch} completed. Total recipes: ${allRecipes.length}`);
+        const trpcResult = await generateRecipesMutation.mutateAsync({
+          count: batchSize,
+          batchNumber,
+          filters: {
+            categories: selectedCategories,
+            includeTags: includeHints.length ? includeHints : undefined,
+            imageStrategy: 'category-generic',
+          },
+        });
+        created = trpcResult;
+      } catch (err) {
+        console.warn('[Explore] tRPC generation failed, falling back to local AI:', err);
+        created = await generateLocalRecipes(batchSize, batchNumber);
       }
 
-      await saveGeneratedRecipes(allRecipes);
+      await saveGeneratedRecipes(created);
       setGenerationProgress(1);
 
-      Alert.alert(
-        'Success! 🎉',
-        `Generated ${allRecipes.length} unique low-FODMAP recipes! Start exploring now.`,
-        [{ text: 'Explore Recipes', onPress: () => setIsGenerating(false) }]
-      );
+      Alert.alert('Success', `Generated ${created.length} recipes.`, [
+        { text: 'OK', onPress: () => setIsGenerating(false) },
+      ]);
 
-      console.log('[Explore] All recipes generated and saved successfully');
+      handleReset();
+      console.log('[Explore] Guided generation completed');
     } catch (error) {
       console.error('[Explore] Recipe generation failed:', error);
       Alert.alert(
@@ -164,9 +174,7 @@ Return a valid JSON array with ${count} recipe objects. Each recipe must have th
 Return ONLY the JSON array, no additional text or explanation.`;
 
     const response = await generateText({
-      messages: [
-        { role: 'user', content: prompt },
-      ],
+      messages: [{ role: 'user', content: prompt }],
     });
 
     let cleaned = response.trim();
@@ -238,7 +246,6 @@ Return ONLY the JSON array, no additional text or explanation.`;
     });
   }
 
-
   if (isGenerating) {
     return (
       <View style={styles.loadingContainer}>
@@ -246,17 +253,12 @@ Return ONLY the JSON array, no additional text or explanation.`;
           <Sparkles size={48} color={Colors.primary} />
           <Text style={styles.loadingTitle}>Creating Amazing Recipes</Text>
           <Text style={styles.loadingSubtitle}>
-            Generating {Math.floor(generationProgress * 100)} unique low-FODMAP recipes...
+            Generating {Math.floor(generationProgress * 100)}% ...
           </Text>
           <View style={styles.progressBarContainer}>
-            <View
-              style={[
-                styles.progressBar,
-                { width: `${Math.floor(generationProgress * 100)}%` },
-              ]}
-            />
+            <View style={[styles.progressBar, { width: `${Math.floor(generationProgress * 100)}%` }]} />
           </View>
-          <Text style={styles.loadingHint}>This may take a few minutes</Text>
+          <Text style={styles.loadingHint}>This may take a moment</Text>
         </View>
       </View>
     );
@@ -265,24 +267,18 @@ Return ONLY the JSON array, no additional text or explanation.`;
   return (
     <View style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search recipes, ingredients..."
-        />
-
         {!aiRecipesGenerated && (
           <View style={styles.heroCard}>
             <View style={styles.heroContent}>
               <ChefHat size={40} color={Colors.primary} />
-              <Text style={styles.heroTitle}>Discover 100 Low-FODMAP Recipes</Text>
+              <Text style={styles.heroTitle}>Discover Low-FODMAP Recipes</Text>
               <Text style={styles.heroDescription}>
-                AI-powered recipes tailored for your dietary needs. Delicious, safe, and easy to
-                make.
+                AI-powered recipes tailored for your dietary needs. Delicious, safe, and easy to make.
               </Text>
               <TouchableOpacity
                 style={styles.generateButton}
                 onPress={handleGenerateRecipes}
+                testID="guided-generate"
               >
                 <Sparkles size={20} color="#fff" />
                 <Text style={styles.generateButtonText}>Generate Recipes</Text>
@@ -291,74 +287,122 @@ Return ONLY the JSON array, no additional text or explanation.`;
           </View>
         )}
 
-        <View style={styles.filterSection}>
-          <View style={styles.filterHeader}>
-            <Filter size={18} color={Colors.text.primary} />
-            <Text style={styles.filterTitle}>Filter by Meal Type</Text>
-          </View>
+        {/* Guided wrapper */}
+        <View style={styles.wizardCard}>
+          <Text style={styles.wizardTitle}>Refine your request</Text>
+
+          {/* Step 1: Categories */}
+          <Text style={styles.stepLabel}>1. Choose categories</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterScrollContent}
+            contentContainerStyle={styles.chipsRow}
           >
-            {mealTypeFilters.map((filter) => {
-              const isSelected = selectedMealType === filter.id;
+            {categories.map((c) => {
+              const active = selectedCategories.includes(c.name);
               return (
                 <TouchableOpacity
-                  key={filter.id}
-                  style={[
-                    styles.filterChip,
-                    isSelected && styles.filterChipActive,
-                  ]}
-                  onPress={() => setSelectedMealType(filter.id)}
+                  key={c.id}
+                  onPress={() => {
+                    setSelectedCategories((prev) =>
+                      prev.includes(c.name)
+                        ? prev.filter((n) => n !== c.name)
+                        : [...prev, c.name]
+                    );
+                  }}
+                  style={[styles.chip, active && styles.chipActive]}
+                  testID={`wizard-cat-${c.id}`}
                 >
-                  <Text style={styles.filterEmoji}>{filter.emoji}</Text>
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      isSelected && styles.filterLabelActive,
-                    ]}
-                  >
-                    {filter.label}
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {c.icon ?? ''} {c.name}
                   </Text>
-                  {isSelected && <X size={14} color="#fff" />}
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
+
+          {/* Step 2: Query mode */}
+          <Text style={styles.stepLabel}>2. What are you looking for?</Text>
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              onPress={() => setQueryMode('name')}
+              style={[styles.modeBtn, queryMode === 'name' && styles.modeBtnActive]}
+              testID="mode-name"
+            >
+              <CheckCircle2 size={18} color={queryMode === 'name' ? '#fff' : Colors.text.primary} />
+              <Text style={[styles.modeText, queryMode === 'name' && styles.modeTextActive]}>Exact recipe name</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setQueryMode('ingredients')}
+              style={[styles.modeBtn, queryMode === 'ingredients' && styles.modeBtnActive]}
+              testID="mode-ingredients"
+            >
+              <CheckCircle2 size={18} color={queryMode === 'ingredients' ? '#fff' : Colors.text.primary} />
+              <Text style={[styles.modeText, queryMode === 'ingredients' && styles.modeTextActive]}>I have ingredients</Text>
+            </TouchableOpacity>
+          </View>
+
+          {queryMode === 'name' && (
+            <TextInput
+              value={recipeName}
+              onChangeText={setRecipeName}
+              placeholder="e.g., Pad Thai"
+              placeholderTextColor={Colors.text.light}
+              style={styles.input}
+              returnKeyType="done"
+              testID="input-name"
+            />
+          )}
+          {queryMode === 'ingredients' && (
+            <TextInput
+              value={ingredientText}
+              onChangeText={setIngredientText}
+              placeholder="Comma-separated ingredients, e.g., chicken, potatoes"
+              placeholderTextColor={Colors.text.light}
+              style={styles.input}
+              multiline
+              testID="input-ingredients"
+            />
+          )}
+
+          <TouchableOpacity
+            style={[styles.generateButton, !(queryMode && (recipeName.trim().length > 0 || ingredientText.trim().length > 0)) && { opacity: 0.6 }]}
+            onPress={startGeneration}
+            disabled={!(queryMode && (recipeName.trim().length > 0 || ingredientText.trim().length > 0))}
+            testID="wizard-generate"
+          >
+            <Sparkles size={20} color="#fff" />
+            <Text style={styles.generateButtonText}>Generate 10 Recipes</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.resultsSection}>
           <Text style={styles.resultsTitle}>
-            {filteredRecipes.length} Recipe{filteredRecipes.length !== 1 ? 's' : ''} Found
+            {allRecipes.length} Recipe{allRecipes.length !== 1 ? 's' : ''} in Library
           </Text>
         </View>
 
-        {filteredRecipes.length === 0 ? (
+        {allRecipes.length === 0 ? (
           <View style={styles.emptyState}>
             <ChefHat size={64} color={Colors.text.light} />
-            <Text style={styles.emptyTitle}>No Recipes Found</Text>
+            <Text style={styles.emptyTitle}>No Recipes Yet</Text>
             <Text style={styles.emptyDescription}>
-              {searchQuery
-                ? 'Try adjusting your search or filters'
-                : 'Generate AI recipes to get started'}
+              Generate AI recipes to get started
             </Text>
             {!aiRecipesGenerated && (
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={handleGenerateRecipes}
-              >
+              <TouchableOpacity style={styles.emptyButton} onPress={handleGenerateRecipes}>
                 <Text style={styles.emptyButtonText}>Generate Recipes</Text>
               </TouchableOpacity>
             )}
           </View>
         ) : (
           <View style={styles.recipeGrid}>
-            {filteredRecipes.map((recipe) => (
+            {allRecipes.map((recipe) => (
               <TouchableOpacity
                 key={recipe.id}
                 style={styles.recipeCard}
                 onPress={() => router.push(`/recipe/${recipe.id}`)}
+                testID={`recipe-${recipe.id}`}
               >
                 <Image
                   source={{
@@ -382,9 +426,7 @@ Return ONLY the JSON array, no additional text or explanation.`;
                   )}
                   <View style={styles.recipeMeta}>
                     {recipe.prepTime !== undefined && recipe.cookTime !== undefined && (
-                      <Text style={styles.metaText}>
-                        ⏱️ {recipe.prepTime + recipe.cookTime} min
-                      </Text>
+                      <Text style={styles.metaText}>⏱️ {recipe.prepTime + recipe.cookTime} min</Text>
                     )}
                     {recipe.servings && (
                       <Text style={styles.metaText}>👥 {recipe.servings} servings</Text>
@@ -505,53 +547,87 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
   },
-  filterSection: {
+  wizardCard: {
+    backgroundColor: Colors.card,
+    marginHorizontal: 16,
     marginTop: 8,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  filterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 8,
-  },
-  filterTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  wizardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text.primary,
+    marginBottom: 8,
   },
-  filterScrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 6,
-    marginRight: 8,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-  },
-  filterEmoji: {
-    fontSize: 16,
-  },
-  filterLabel: {
+  stepLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.text.primary,
+    color: Colors.text.secondary,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  filterLabelActive: {
+  chipsRow: {
+    paddingRight: 16,
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 18,
+    backgroundColor: Colors.surface,
+  },
+  chipActive: {
+    backgroundColor: Colors.primary,
+  },
+  chipText: {
+    color: Colors.text.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  chipTextActive: {
     color: '#fff',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+  },
+  modeBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  modeText: {
+    color: Colors.text.primary,
+    fontWeight: '600',
+  },
+  modeTextActive: {
+    color: '#fff',
+  },
+  input: {
+    marginTop: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: Platform.select({ ios: 14, android: 12, web: 12 }) as number,
+    color: Colors.text.primary,
   },
   resultsSection: {
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 16,
     marginBottom: 12,
   },
   resultsTitle: {
@@ -651,5 +727,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
+  },
+  resetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+  },
+  resetText: {
+    color: Colors.text.primary,
+    fontWeight: '600',
+    fontSize: 13,
   },
 });
