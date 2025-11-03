@@ -38,16 +38,57 @@ export const generateRecipesProcedure = publicProcedure
     z.object({
       count: z.number().min(1).max(100).default(10),
       batchNumber: z.number().min(1).default(1),
+      filters: z
+        .object({
+          categories: z.array(z.string()).optional(),
+          userCategories: z.array(z.string()).optional(),
+          mealTypes: z.array(z.enum(["breakfast", "lunch", "dinner", "snack", "dessert"]))
+            .optional(),
+          maxPrepTime: z.number().min(1).max(240).optional(),
+          maxCookTime: z.number().min(1).max(480).optional(),
+          includeTags: z.array(z.string()).optional(),
+          excludeIngredients: z.array(z.string()).optional(),
+          imageStrategy: z.enum(["category-generic", "unsplash-by-query"]).optional(),
+        })
+        .optional(),
     })
   )
   .mutation(async ({ input }) => {
     console.log(`[Generate Recipes] Starting batch ${input.batchNumber} with ${input.count} recipes`);
     
-    const mealTypesForBatch = [];
+    const selectedMealTypes = input.filters?.mealTypes && input.filters.mealTypes.length > 0
+      ? input.filters.mealTypes
+      : MEAL_TYPES;
+
+    const mealTypesForBatch: string[] = [];
     for (let i = 0; i < input.count; i++) {
-      mealTypesForBatch.push(MEAL_TYPES[i % MEAL_TYPES.length]);
+      mealTypesForBatch.push(selectedMealTypes[i % selectedMealTypes.length]);
     }
-    
+
+    const categoryHints = [
+      ...(input.filters?.categories ?? []),
+      ...(input.filters?.userCategories ?? []),
+    ];
+
+    const timeConstraints = [
+      input.filters?.maxPrepTime ? `- Prep time at most ${input.filters.maxPrepTime} minutes` : null,
+      input.filters?.maxCookTime ? `- Cook time at most ${input.filters.maxCookTime} minutes` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const includeTags = input.filters?.includeTags?.length
+      ? `- Favor themes/tags: ${input.filters.includeTags.join(", ")}`
+      : "";
+
+    const excludeIngredients = input.filters?.excludeIngredients?.length
+      ? `- Absolutely avoid ingredients: ${input.filters.excludeIngredients.join(", ")}`
+      : "";
+
+    const categoryLine = categoryHints.length
+      ? `- Recipes should align with these categories when possible: ${categoryHints.join(", ")}`
+      : "";
+
     const prompt = `Generate ${input.count} unique and creative low-FODMAP recipes for batch ${input.batchNumber}. 
 
 IMPORTANT REQUIREMENTS:
@@ -57,6 +98,10 @@ IMPORTANT REQUIREMENTS:
 - Include meal types: ${mealTypesForBatch.join(", ")}
 - Make recipes practical and realistic
 - Ensure accurate cooking times and servings
+${timeConstraints}
+${includeTags}
+${excludeIngredients}
+${categoryLine}
 
 Available low-FODMAP ingredients to use: ${LOW_FODMAP_INGREDIENTS.join(", ")}
 
@@ -117,7 +162,7 @@ Return ONLY the JSON array, no additional text or explanation.`;
           id: recipeId,
           title: recipe.title,
           description: recipe.description,
-          imageUrl: getRecipeImageUrl(recipe.mealType),
+          imageUrl: getRecipeImageUrl(recipe.mealType, input.filters?.imageStrategy, categoryHints[0]),
           sourcePlatform: "manual" as const,
           prepTime: recipe.prepTime || 15,
           cookTime: recipe.cookTime || 30,
@@ -149,7 +194,7 @@ Return ONLY the JSON array, no additional text or explanation.`;
     }
   });
 
-function getRecipeImageUrl(mealType: string): string {
+function getRecipeImageUrl(mealType: string, strategy?: "category-generic" | "unsplash-by-query", categoryHint?: string | undefined): string {
   const imageMap: Record<string, string[]> = {
     breakfast: [
       "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800",
@@ -178,6 +223,10 @@ function getRecipeImageUrl(mealType: string): string {
     ],
   };
   
+  if (strategy === "unsplash-by-query" && categoryHint) {
+    const query = encodeURIComponent(`${categoryHint} ${mealType} food`);
+    return `https://source.unsplash.com/featured/?${query}`;
+  }
   const images = imageMap[mealType] || imageMap.lunch;
   return images[Math.floor(Math.random() * images.length)];
 }

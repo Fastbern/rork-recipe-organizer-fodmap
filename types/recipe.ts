@@ -78,3 +78,14 @@ export interface GroceryItem {
   isChecked: boolean;
   quantity: number;
 }
+
+export interface RecipeGenerationFilters {
+  categories?: string[];
+  userCategories?: string[];
+  mealTypes?: Array<MealType | 'dessert'>;
+  maxPrepTime?: number;
+  maxCookTime?: number;
+  includeTags?: string[];
+  excludeIngredients?: string[];
+  imageStrategy?: 'category-generic' | 'unsplash-by-query';
+}
