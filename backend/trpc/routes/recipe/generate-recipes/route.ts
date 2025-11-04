@@ -49,6 +49,8 @@ export const generateRecipesProcedure = publicProcedure
           includeTags: z.array(z.string()).optional(),
           excludeIngredients: z.array(z.string()).optional(),
           imageStrategy: z.enum(["category-generic", "unsplash-by-query"]).optional(),
+          exactName: z.string().optional(),
+          ingredientSeeds: z.array(z.string()).optional(),
         })
         .optional(),
     })
@@ -89,6 +91,9 @@ export const generateRecipesProcedure = publicProcedure
       ? `- Recipes should align with these categories when possible: ${categoryHints.join(", ")}`
       : "";
 
+    const nameHint = input.filters?.exactName ? `- Include at least one recipe that matches or closely matches the exact name: "${input.filters.exactName}"` : "";
+    const ingredientHint = input.filters?.ingredientSeeds?.length ? `- Prefer recipes that prominently use: ${input.filters.ingredientSeeds.join(", ")}` : "";
+
     const prompt = `Generate ${input.count} unique and creative low-FODMAP recipes for batch ${input.batchNumber}. 
 
 IMPORTANT REQUIREMENTS:
@@ -102,6 +107,8 @@ ${timeConstraints}
 ${includeTags}
 ${excludeIngredients}
 ${categoryLine}
+${nameHint}
+${ingredientHint}
 
 Available low-FODMAP ingredients to use: ${LOW_FODMAP_INGREDIENTS.join(", ")}
 
@@ -162,7 +169,7 @@ Return ONLY the JSON array, no additional text or explanation.`;
           id: recipeId,
           title: recipe.title,
           description: recipe.description,
-          imageUrl: getRecipeImageUrl(recipe.mealType, input.filters?.imageStrategy, categoryHints[0]),
+          imageUrl: getRecipeImageUrl(recipe.mealType, input.filters?.imageStrategy, categoryHints[0], index),
           sourcePlatform: "manual" as const,
           prepTime: recipe.prepTime || 15,
           cookTime: recipe.cookTime || 30,
@@ -194,7 +201,7 @@ Return ONLY the JSON array, no additional text or explanation.`;
     }
   });
 
-function getRecipeImageUrl(mealType: string, strategy?: "category-generic" | "unsplash-by-query", categoryHint?: string | undefined): string {
+function getRecipeImageUrl(mealType: string, strategy?: "category-generic" | "unsplash-by-query", categoryHint?: string | undefined, index?: number): string {
   const imageMap: Record<string, string[]> = {
     breakfast: [
       "https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?w=800",
@@ -228,6 +235,9 @@ function getRecipeImageUrl(mealType: string, strategy?: "category-generic" | "un
     return `https://source.unsplash.com/featured/?${query}`;
   }
   const images = imageMap[mealType] || imageMap.lunch;
+  if (typeof index === "number") {
+    return images[index % images.length];
+  }
   return images[Math.floor(Math.random() * images.length)];
 }
 

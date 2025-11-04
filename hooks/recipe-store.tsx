@@ -31,6 +31,7 @@ const STORAGE_KEYS = {
   GROCERY_LIST: 'groceryList',
   USER_PROFILE: 'userProfile',
   AI_RECIPES_GENERATED: 'aiRecipesGenerated',
+  EXPLORE_GENERATED: 'exploreGeneratedRecipes',
 };
 
 interface UserProfile {
@@ -48,6 +49,7 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
   const [groceryList, setGroceryList] = useState<GroceryItem[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [aiRecipesGenerated, setAiRecipesGenerated] = useState<boolean>(false);
+  const [exploreGenerated, setExploreGenerated] = useState<Recipe[]>([]);
 
   // Load recipes from storage
   const recipesQuery = useQuery({
@@ -142,7 +144,7 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     });
   }, []);
 
-  // Load AI recipes generation status
+  // Load AI recipes generation status and explore-generated list
   useEffect(() => {
     storage.getItem(STORAGE_KEYS.AI_RECIPES_GENERATED).then((stored) => {
       if (stored && stored.trim()) {
@@ -150,6 +152,15 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
           setAiRecipesGenerated(JSON.parse(stored));
         } catch {
           setAiRecipesGenerated(false);
+        }
+      }
+    });
+    storage.getItem(STORAGE_KEYS.EXPLORE_GENERATED).then((stored) => {
+      if (stored && stored.trim()) {
+        try {
+          setExploreGenerated(JSON.parse(stored) as Recipe[]);
+        } catch {
+          setExploreGenerated([]);
         }
       }
     });
@@ -459,14 +470,13 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
   const { mutate: mutateRecipeCategory } = updateRecipeCategoryMutation;
 
   const saveGeneratedRecipes = useCallback(async (newRecipes: Recipe[]) => {
-    const existingRecipes = recipesQuery.data || [];
-    const updatedRecipes = [...existingRecipes, ...newRecipes];
-    await storage.setItem(STORAGE_KEYS.RECIPES, JSON.stringify(updatedRecipes));
-    queryClient.setQueryData(['recipes'], updatedRecipes);
+    const updated = [...exploreGenerated, ...newRecipes];
+    setExploreGenerated(updated);
+    await storage.setItem(STORAGE_KEYS.EXPLORE_GENERATED, JSON.stringify(updated));
     await storage.setItem(STORAGE_KEYS.AI_RECIPES_GENERATED, JSON.stringify(true));
     setAiRecipesGenerated(true);
-    console.log(`[Recipe Store] Saved ${newRecipes.length} AI-generated recipes`);
-  }, [recipesQuery.data, queryClient]);
+    console.log(`[Recipe Store] Saved ${newRecipes.length} AI-generated explore recipes`);
+  }, [exploreGenerated]);
   
   const updateRecipeImage = useCallback((recipeId: string, imageUrl: string) => {
     mutateRecipeImage({ recipeId, imageUrl });
@@ -558,6 +568,18 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     });
   }, [upsertMealPlan]);
 
+  const clearExploreGenerated = useCallback(async () => {
+    setExploreGenerated([]);
+    await storage.setItem(STORAGE_KEYS.EXPLORE_GENERATED, JSON.stringify([]));
+  }, []);
+
+  const promoteExploreRecipeToLibrary = useCallback(async (recipe: Recipe) => {
+    await saveRecipeMutation.mutateAsync(recipe);
+    const remaining = exploreGenerated.filter(r => r.id !== recipe.id);
+    setExploreGenerated(remaining);
+    await storage.setItem(STORAGE_KEYS.EXPLORE_GENERATED, JSON.stringify(remaining));
+  }, [exploreGenerated, saveRecipeMutation]);
+
   return useMemo(() => ({
     recipes: recipesQuery.data || [],
     categories: categoriesWithRecipeCount,
@@ -569,6 +591,7 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     isLoading: recipesQuery.isLoading || categoriesQuery.isLoading,
     userProfile,
     aiRecipesGenerated,
+    exploreGenerated,
     
     // Actions
     setSearchQuery,
@@ -594,6 +617,8 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     signInWithApple,
     signOut,
     saveGeneratedRecipes,
+    clearExploreGenerated,
+    promoteExploreRecipeToLibrary,
     
     // Mutation states
     isSaving: saveRecipeMutation.isPending,
@@ -612,6 +637,7 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     categoriesQuery.isLoading,
     userProfile,
     aiRecipesGenerated,
+    exploreGenerated,
     setSearchQuery,
     setSelectedCategory,
     saveRecipeMutation.mutate,
@@ -635,6 +661,8 @@ export const [RecipeProvider, useRecipes] = createContextHook(() => {
     signInWithApple,
     signOut,
     saveGeneratedRecipes,
+    clearExploreGenerated,
+    promoteExploreRecipeToLibrary,
     saveRecipeMutation.isPending,
     deleteRecipeMutation.isPending,
     saveCategoryMutation.isPending,

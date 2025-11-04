@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -30,7 +30,7 @@ interface LocalGeneratedRecipe {
 
 export default function ExploreScreen() {
   const navigation = useNavigation();
-  const { recipes, aiRecipesGenerated, saveGeneratedRecipes, categories } = useRecipes();
+  const { aiRecipesGenerated, saveGeneratedRecipes, categories, exploreGenerated, promoteExploreRecipeToLibrary, clearExploreGenerated } = useRecipes();
 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generationProgress, setGenerationProgress] = useState<number>(0);
@@ -40,7 +40,7 @@ export default function ExploreScreen() {
   const [recipeName, setRecipeName] = useState<string>('');
   const [ingredientText, setIngredientText] = useState<string>('');
 
-  const allRecipes = useMemo(() => recipes, [recipes]);
+
 
   const generateRecipesMutation = trpc.recipe.generateRecipes.useMutation();
 
@@ -80,6 +80,7 @@ export default function ExploreScreen() {
     setQueryMode(null);
     setRecipeName('');
     setIngredientText('');
+    clearExploreGenerated();
   }
 
   const startGeneration = async () => {
@@ -115,6 +116,8 @@ export default function ExploreScreen() {
           filters: {
             categories: selectedCategories,
             includeTags: includeHints.length ? includeHints : undefined,
+            exactName: queryMode === 'name' ? recipeName.trim() : undefined,
+            ingredientSeeds: queryMode === 'ingredients' ? ingredientHints : undefined,
             imageStrategy: 'category-generic',
           },
         });
@@ -378,43 +381,38 @@ Return ONLY the JSON array, no additional text or explanation.`;
 
         <View style={styles.resultsSection}>
           <Text style={styles.resultsTitle}>
-            {allRecipes.length} Recipe{allRecipes.length !== 1 ? 's' : ''} in Library
+            {exploreGenerated.length} Generated result{exploreGenerated.length !== 1 ? 's' : ''}
           </Text>
         </View>
 
-        {allRecipes.length === 0 ? (
+        {exploreGenerated.length === 0 ? (
           <View style={styles.emptyState}>
             <ChefHat size={64} color={Colors.text.light} />
-            <Text style={styles.emptyTitle}>No Recipes Yet</Text>
+            <Text style={styles.emptyTitle}>No Generated Results Yet</Text>
             <Text style={styles.emptyDescription}>
-              Generate AI recipes to get started
+              Answer the questions above to generate 10 tailored recipes
             </Text>
-            {!aiRecipesGenerated && (
-              <TouchableOpacity style={styles.emptyButton} onPress={handleGenerateRecipes}>
-                <Text style={styles.emptyButtonText}>Generate Recipes</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity style={styles.emptyButton} onPress={handleGenerateRecipes}>
+              <Text style={styles.emptyButtonText}>Generate Recipes</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.recipeGrid}>
-            {allRecipes.map((recipe) => (
-              <TouchableOpacity
-                key={recipe.id}
-                style={styles.recipeCard}
-                onPress={() => router.push(`/recipe/${recipe.id}`)}
-                testID={`recipe-${recipe.id}`}
-              >
-                <Image
-                  source={{
-                    uri: recipe.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
-                  }}
-                  style={styles.recipeImage}
-                />
-                <View style={styles.recipeOverlay}>
-                  <View style={styles.recipeBadge}>
-                    <Text style={styles.recipeBadgeText}>Low FODMAP</Text>
+            {exploreGenerated.map((recipe) => (
+              <View key={recipe.id} style={styles.recipeCard}>
+                <TouchableOpacity onPress={() => {}} activeOpacity={0.9}>
+                  <Image
+                    source={{
+                      uri: recipe.imageUrl || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400',
+                    }}
+                    style={styles.recipeImage}
+                  />
+                  <View style={styles.recipeOverlay}>
+                    <View style={styles.recipeBadge}>
+                      <Text style={styles.recipeBadgeText}>Low FODMAP</Text>
+                    </View>
                   </View>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.recipeContent}>
                   <Text style={styles.recipeTitle} numberOfLines={2}>
                     {recipe.title}
@@ -432,8 +430,31 @@ Return ONLY the JSON array, no additional text or explanation.`;
                       <Text style={styles.metaText}>👥 {recipe.servings} servings</Text>
                     )}
                   </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    <TouchableOpacity
+                      style={[styles.generateButton, { paddingVertical: 10, paddingHorizontal: 16 }]}
+                      onPress={async () => {
+                        await promoteExploreRecipeToLibrary(recipe);
+                        Alert.alert('Saved', 'Recipe saved to your library. You can now adapt it.');
+                        router.push(`/recipe/${recipe.id}`);
+                      }}
+                      testID={`save-${recipe.id}`}
+                    >
+                      <Text style={styles.generateButtonText}>Save to Library</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.generateButton, { backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.primary }]}
+                      onPress={async () => {
+                        await promoteExploreRecipeToLibrary(recipe);
+                        router.push(`/recipe/${recipe.id}`);
+                      }}
+                      testID={`adapt-${recipe.id}`}
+                    >
+                      <Text style={[styles.generateButtonText, { color: Colors.primary }]}>Adapt Now</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
